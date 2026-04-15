@@ -88,11 +88,14 @@ export const analyzeProject = async (
 
 export const generateReport = async (
   projectFilter?: string,
+  onProgress?: (current: number, total: number, projectName: string) => void,
 ): Promise<AnalysisReport> => {
   const projects = await indexAllProjects(projectFilter);
   const projectAnalyses: ProjectAnalysis[] = [];
 
-  for (const project of projects) {
+  for (let projectIndex = 0; projectIndex < projects.length; projectIndex++) {
+    const project = projects[projectIndex];
+    onProgress?.(projectIndex + 1, projects.length, project.projectPath);
     const analysis = await analyzeProject(project);
     projectAnalyses.push(analysis);
   }

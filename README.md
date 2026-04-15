@@ -1,6 +1,8 @@
 # claude-doctor
 
-Diagnose your Claude Code sessions. Analyzes `~/.claude/` transcripts for quality signals, behavioral anti-patterns, and sentiment drift. Generates AGENTS.md rules from your history.
+Diagnose your Claude Code sessions — analyzes transcripts for behavioral anti-patterns and generates AGENTS.md rules from your history.
+
+![claude-doctor --all](.github/screenshot.png)
 
 ## Install
 

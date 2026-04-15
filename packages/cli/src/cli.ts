@@ -18,12 +18,43 @@ import {
 } from "./viz.js";
 import { generateAgentsRules } from "./suggestions.js";
 
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const DIM = "\x1b[2m";
+const RESET = "\x1b[0m";
+
+const createSpinner = () => {
+  let frameIndex = 0;
+  let intervalId: ReturnType<typeof setInterval> | undefined;
+  let currentMessage = "";
+
+  const render = () => {
+    const frame = SPINNER_FRAMES[frameIndex % SPINNER_FRAMES.length];
+    process.stderr.write(`\r${DIM}${frame} ${currentMessage}${RESET}\x1b[K`);
+    frameIndex++;
+  };
+
+  return {
+    start: (message: string) => {
+      currentMessage = message;
+      render();
+      intervalId = setInterval(render, 80);
+    },
+    update: (message: string) => {
+      currentMessage = message;
+    },
+    stop: () => {
+      if (intervalId) clearInterval(intervalId);
+      process.stderr.write("\r\x1b[K");
+    },
+  };
+};
+
 const program = new Command();
 
 program
   .name("claude-doctor")
   .description(
-    "Analyze Claude Code transcripts for quality signals and generate AGENTS.md rules",
+    "Diagnose your Claude Code sessions — analyzes transcripts for behavioral anti-patterns and generates AGENTS.md rules",
   )
   .version("0.0.1")
   .option("-p, --project <path>", "Filter to a specific project path")
@@ -47,7 +78,23 @@ program
       dir?: string;
     }) => {
       if (options.all || options.rules || options.save) {
-        const report = await generateReport(options.project);
+        const spinner = createSpinner();
+        spinner.start("Scanning transcripts…");
+
+        const report = await generateReport(
+          options.project,
+          (current, total, projectName) => {
+            const shortName = projectName.replace(
+              /^Users\/[^/]+\/Developer\//,
+              "",
+            );
+            spinner.update(
+              `Analyzing ${shortName} (${current}/${total})`,
+            );
+          },
+        );
+
+        spinner.stop();
 
         if (options.save) {
           const modelDir = saveModel(report, options.dir);
@@ -79,6 +126,9 @@ program
         return;
       }
 
+      const spinner = createSpinner();
+      spinner.start("Checking session…");
+
       let sessionFilePath: string;
       let sessionId: string;
 
@@ -88,6 +138,7 @@ program
       } else {
         const latest = findLatestSession(options.project);
         if (!latest) {
+          spinner.stop();
           console.error("No sessions found.");
           process.exit(1);
         }
@@ -104,12 +155,15 @@ program
       );
 
       if (options.json) {
+        spinner.stop();
         console.log(JSON.stringify(result, null, 2));
         return;
       }
 
       const { turns, healthPercentage, summary } =
         await buildSessionTimeline(sessionFilePath);
+
+      spinner.stop();
 
       console.log(
         renderCheckOutput(
