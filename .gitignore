@@ -7,4 +7,4 @@ dist
 tsup.config.bundled_*
 **/src/generated/
 .cursor/plans
-.claude-optimizer
+.claude-doctor

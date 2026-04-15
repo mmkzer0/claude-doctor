@@ -15,7 +15,7 @@ import { detectErrorLoops } from "./signals/error-loops.js";
 import { detectToolInefficiency } from "./signals/tool-efficiency.js";
 import { detectBehavioralSignals } from "./signals/behavioral.js";
 
-const MODEL_DIR = ".claude-optimizer";
+const MODEL_DIR = ".claude-doctor";
 const MODEL_FILE = "model.json";
 const GUIDANCE_FILE = "guidance.md";
 
@@ -278,7 +278,7 @@ const buildSessionGuidance = (
     );
     if (matchingHistorical.length > 0) {
       guidance.push(
-        `This session is repeating known issues from past sessions: ${matchingHistorical.map((signal) => signal.signalName).join(", ")}. Check .claude-optimizer/guidance.md for project-specific rules.`,
+        `This session is repeating known issues from past sessions: ${matchingHistorical.map((signal) => signal.signalName).join(", ")}. Check .claude-doctor/guidance.md for project-specific rules.`,
       );
     }
   }

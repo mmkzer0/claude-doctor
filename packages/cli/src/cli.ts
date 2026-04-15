@@ -21,7 +21,7 @@ import { generateAgentsRules } from "./suggestions.js";
 const program = new Command();
 
 program
-  .name("claude-optimizer")
+  .name("claude-doctor")
   .description(
     "Analyze Claude Code transcripts for quality signals and generate AGENTS.md rules",
   )
@@ -30,11 +30,11 @@ program
   .option("-s, --session <path>", "Check a specific session .jsonl file")
   .option("--all", "Analyze all sessions across all projects")
   .option("--rules", "Output AGENTS.md rules text")
-  .option("--save", "Save analysis model to .claude-optimizer/")
+  .option("--save", "Save analysis model to .claude-doctor/")
   .option("--json", "Output as JSON")
   .option(
     "-d, --dir <path>",
-    "Project root for .claude-optimizer/",
+    "Project root for .claude-doctor/",
   )
   .action(
     async (options: {

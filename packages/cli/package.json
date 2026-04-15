@@ -1,5 +1,5 @@
 {
-  "name": "claude-optimizer",
+  "name": "claude-doctor",
   "version": "0.0.1",
   "description": "Analyze Claude Code transcripts for quality signals, sentiment drift, and behavioral anti-patterns.",
   "keywords": [
@@ -13,9 +13,9 @@
     "ai",
     "llm"
   ],
-  "homepage": "https://github.com/aidenybai/claude-optimizer",
+  "homepage": "https://github.com/aidenybai/claude-doctor",
   "bugs": {
-    "url": "https://github.com/aidenybai/claude-optimizer/issues"
+    "url": "https://github.com/aidenybai/claude-doctor/issues"
   },
   "license": "MIT",
   "author": {
@@ -24,10 +24,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aidenybai/claude-optimizer.git"
+    "url": "git+https://github.com/aidenybai/claude-doctor.git"
   },
   "bin": {
-    "claude-optimizer": "./dist/cli.mjs"
+    "claude-doctor": "./dist/cli.mjs"
   },
   "files": [
     "dist",
