@@ -1,18 +1,47 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { loadClaudeSessionFromFilePath } from "./adapters/claude.js";
 import { CLAUDE_PROJECTS_DIR } from "./constants.js";
 import {
-  parseTranscriptFile,
-  extractUserMessages,
-  extractToolUses,
-  extractToolErrors,
-  countInterrupts,
-  getSessionTimeRange,
-} from "./parser.js";
+  countNormalizedInterrupts,
+  countNormalizedToolErrors,
+  extractNormalizedToolUses,
+  extractNormalizedUserMessages,
+} from "./normalized.js";
 
 const decodeProjectName = (encodedName: string): string =>
   encodedName.replace(/-/g, "/").replace(/^\//, "");
+
+const countAssistantSourceEvents = (events: NormalizedEvent[]): number => {
+  const assistantSourceEventIds = new Set<string>();
+
+  for (const event of events) {
+    if (event.role !== "assistant") continue;
+    assistantSourceEventIds.add(event.sourceEventId ?? event.id);
+  }
+
+  return assistantSourceEventIds.size;
+};
+
+const buildSessionMetadataFromBundle = (
+  bundle: NormalizedSessionBundle,
+  filePath: string,
+  projectPath: string,
+  projectName: string,
+): SessionMetadata => ({
+  sessionId: path.basename(filePath, ".jsonl"),
+  projectPath,
+  projectName,
+  filePath,
+  startTime: bundle.session.startedAt,
+  endTime: bundle.session.endedAt,
+  userMessageCount: extractNormalizedUserMessages(bundle.session.events).length,
+  assistantMessageCount: countAssistantSourceEvents(bundle.session.events),
+  toolCallCount: extractNormalizedToolUses(bundle.session.events).length,
+  toolErrorCount: countNormalizedToolErrors(bundle.session.events),
+  interruptCount: countNormalizedInterrupts(bundle.session.events),
+});
 
 export const getProjectsDir = (): string =>
   path.join(os.homedir(), CLAUDE_PROJECTS_DIR);
@@ -38,31 +67,14 @@ export const buildSessionMetadata = async (
   projectPath: string,
   projectName: string,
 ): Promise<SessionMetadata> => {
-  const sessionId = path.basename(filePath, ".jsonl");
-  const events = await parseTranscriptFile(filePath);
-  const userMessages = extractUserMessages(events);
-  const toolUses = extractToolUses(events);
-  const toolErrorCount = extractToolErrors(events);
-  const interruptCount = countInterrupts(events);
-  const { start, end } = getSessionTimeRange(events);
+  const bundle = await loadClaudeSessionFromFilePath(filePath);
 
-  const assistantMessageCount = events.filter(
-    (event) => event.type === "assistant",
-  ).length;
-
-  return {
-    sessionId,
+  return buildSessionMetadataFromBundle(
+    bundle,
+    filePath,
     projectPath,
     projectName,
-    filePath,
-    startTime: start,
-    endTime: end,
-    userMessageCount: userMessages.length,
-    assistantMessageCount,
-    toolCallCount: toolUses.length,
-    toolErrorCount,
-    interruptCount,
-  };
+  );
 };
 
 export const indexAllProjects = async (
