@@ -108,6 +108,37 @@ interface ProjectMetadata {
   totalSessions: number;
 }
 
+interface DiscoveryLocation {
+  frontendId: FrontendId;
+  rootPath: string;
+  exists: boolean;
+  projectDirectoriesDiscovered: number;
+  matchingProjectDirectories: number;
+  sessionFilesDiscovered: number;
+  matchingSessionFiles: number;
+  loadedSessionFiles: number;
+  failedSessionFiles: number;
+}
+
+interface DiscoveryReport {
+  projectFilter?: string;
+  locations: DiscoveryLocation[];
+  warnings: string[];
+}
+
+interface IndexedProjectsResult {
+  projects: ProjectMetadata[];
+  discovery: DiscoveryReport;
+}
+
+interface LatestSessionLookup {
+  session?: {
+    filePath: string;
+    sessionId: string;
+  };
+  discovery: DiscoveryReport;
+}
+
 interface SignalResult {
   signalName: string;
   severity: "critical" | "high" | "medium" | "low";
@@ -124,6 +155,7 @@ interface AnalysisReport {
   projects: ProjectAnalysis[];
   topSignals: SignalResult[];
   suggestions: string[];
+  discovery?: DiscoveryReport;
 }
 
 interface ProjectAnalysis {

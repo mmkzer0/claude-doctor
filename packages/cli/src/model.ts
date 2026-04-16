@@ -1,12 +1,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as os from "node:os";
 import {
-  CLAUDE_PROJECTS_DIR,
   MODEL_TOP_ISSUES_LIMIT,
   SAVED_MODEL_VERSION,
 } from "./constants.js";
+import { findLatestSessionWithDiscovery } from "./indexer.js";
 import { collectSessionSignals } from "./signals/session-signals.js";
+
+export { findLatestSessionWithDiscovery } from "./indexer.js";
 
 const MODEL_DIR = ".claude-doctor";
 const MODEL_FILE = "model.json";
@@ -264,45 +265,5 @@ const buildSessionGuidance = (
 export const findLatestSession = (
   projectFilter?: string,
 ): { filePath: string; sessionId: string } | undefined => {
-  const projectsDir = path.join(os.homedir(), CLAUDE_PROJECTS_DIR);
-  if (!fs.existsSync(projectsDir)) return undefined;
-
-  const projectDirs = fs
-    .readdirSync(projectsDir, { withFileTypes: true })
-    .filter((dirent) => dirent.isDirectory())
-    .map((dirent) => dirent.name);
-
-  let latestTime = 0;
-  let latestFile: string | undefined;
-
-  for (const projectDir of projectDirs) {
-    if (projectFilter) {
-      const decoded = projectDir.replace(/-/g, "/").replace(/^\//, "");
-      if (!decoded.includes(projectFilter)) continue;
-    }
-
-    const fullDir = path.join(projectsDir, projectDir);
-    const files = fs
-      .readdirSync(fullDir)
-      .filter(
-        (fileName) =>
-          fileName.endsWith(".jsonl") && !fileName.startsWith("agent-"),
-      );
-
-    for (const file of files) {
-      const filePath = path.join(fullDir, file);
-      const stat = fs.statSync(filePath);
-      if (stat.mtimeMs > latestTime) {
-        latestTime = stat.mtimeMs;
-        latestFile = filePath;
-      }
-    }
-  }
-
-  if (!latestFile) return undefined;
-
-  return {
-    filePath: latestFile,
-    sessionId: path.basename(latestFile, ".jsonl"),
-  };
+  return findLatestSessionWithDiscovery(projectFilter).session;
 };

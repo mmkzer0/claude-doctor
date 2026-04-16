@@ -316,6 +316,41 @@ export const renderCheckOutput = (
   return lines.join("\n");
 };
 
+export const renderNoSessionsFound = (
+  discovery: DiscoveryReport,
+): string => {
+  const lines: string[] = [];
+
+  lines.push(`${BOLD}No sessions found.${RESET}`);
+  lines.push("");
+
+  for (const location of discovery.locations) {
+    lines.push(
+      `${BOLD}${location.frontendId}${RESET}  ${location.rootPath} ${DIM}(${location.exists ? "exists" : "missing"})${RESET}`,
+    );
+    lines.push(
+      `${DIM}projects: ${location.projectDirectoriesDiscovered} discovered, ${location.matchingProjectDirectories} matched${RESET}`,
+    );
+    lines.push(
+      `${DIM}sessions: ${location.sessionFilesDiscovered} discovered, ${location.matchingSessionFiles} matched${RESET}`,
+    );
+    lines.push(
+      `${DIM}loaded: ${location.loadedSessionFiles}, failed: ${location.failedSessionFiles}${RESET}`,
+    );
+    lines.push("");
+  }
+
+  for (const warning of discovery.warnings) {
+    lines.push(`${YELLOW}→${RESET} ${warning}`);
+  }
+
+  if (discovery.projectFilter) {
+    lines.push(`${DIM}project filter: ${discovery.projectFilter}${RESET}`);
+  }
+
+  return lines.join("\n");
+};
+
 const PROJECT_NAME_WIDTH = 30;
 const BAR_LABEL_WIDTH = 4;
 
@@ -346,6 +381,10 @@ const scoreToHealthPercentage = (project: ProjectAnalysis): number => {
 export const renderAnalyzeOutput = async (
   report: AnalysisReport,
 ): Promise<string> => {
+  if (report.totalSessions === 0 && report.discovery) {
+    return renderNoSessionsFound(report.discovery);
+  }
+
   const lines: string[] = [];
 
   lines.push(`${BOLD}Claude Optimizer${RESET}  ${DIM}${report.totalProjects} projects · ${report.totalSessions} sessions${RESET}`);

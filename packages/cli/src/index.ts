@@ -16,7 +16,13 @@ export {
   TranscriptAdapterRegistry,
   createTranscriptAdapterRegistry,
 } from "./adapters/index.js";
-export { indexAllProjects, discoverProjects, discoverSessions } from "./indexer.js";
+export {
+  indexAllProjects,
+  indexAllProjectsWithDiscovery,
+  findLatestSessionWithDiscovery,
+  discoverProjects,
+  discoverSessions,
+} from "./indexer.js";
 export { generateReport, formatReportMarkdown, formatReportJson } from "./reporter.js";
 export {
   analyzeSessionSentiment,
@@ -36,5 +42,17 @@ export {
 } from "./signals/behavioral.js";
 export { collectSessionSignals } from "./signals/session-signals.js";
 export { generateSuggestions, generateAgentsRules } from "./suggestions.js";
-export { saveModel, loadModel, checkSession, findLatestSession } from "./model.js";
-export { buildSessionTimeline, renderTimeline, renderHealthBar, renderCheckOutput, renderAnalyzeOutput } from "./viz.js";
+export {
+  saveModel,
+  loadModel,
+  checkSession,
+  findLatestSession,
+} from "./model.js";
+export {
+  buildSessionTimeline,
+  renderTimeline,
+  renderHealthBar,
+  renderCheckOutput,
+  renderAnalyzeOutput,
+  renderNoSessionsFound,
+} from "./viz.js";

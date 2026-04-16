@@ -9,12 +9,13 @@ import {
   saveModel,
   loadModel,
   checkSession,
-  findLatestSession,
+  findLatestSessionWithDiscovery,
 } from "./model.js";
 import {
   buildSessionTimeline,
   renderCheckOutput,
   renderAnalyzeOutput,
+  renderNoSessionsFound,
 } from "./viz.js";
 import { generateAgentsRules } from "./suggestions.js";
 
@@ -89,13 +90,28 @@ program
           sessionFilePath = sessionArg;
           sessionId = sessionArg.replace(/.*\//, "").replace(".jsonl", "");
         } else {
-          const latest = findLatestSession(options.project);
-          if (!latest) {
+          const latestLookup = findLatestSessionWithDiscovery(options.project);
+
+          if (!latestLookup.session) {
             spinner.stop();
-            console.error("No sessions found.");
+            if (options.json) {
+              console.log(
+                JSON.stringify(
+                  {
+                    error: "No sessions found.",
+                    discovery: latestLookup.discovery,
+                  },
+                  null,
+                  2,
+                ),
+              );
+            } else {
+              console.error(renderNoSessionsFound(latestLookup.discovery));
+            }
             process.exit(1);
           }
-          const sessionDir = latest.filePath.replace(/\/[^/]+$/, "");
+
+          const sessionDir = latestLookup.session.filePath.replace(/\/[^/]+$/, "");
           sessionFilePath = `${sessionDir}/${sessionArg}.jsonl`;
           sessionId = sessionArg;
         }
@@ -144,6 +160,15 @@ program
       );
 
       spinner.stop();
+
+      if (report.totalSessions === 0) {
+        if (options.json) {
+          console.log(formatReportJson(report));
+        } else {
+          console.error(await renderAnalyzeOutput(report));
+        }
+        process.exit(1);
+      }
 
       if (options.save) {
         const modelDir = saveModel(report, options.dir);

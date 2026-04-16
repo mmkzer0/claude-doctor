@@ -1,4 +1,4 @@
-import { indexAllProjects } from "./indexer.js";
+import { indexAllProjectsWithDiscovery } from "./indexer.js";
 import { detectAbandonment } from "./signals/abandonment.js";
 import { collectSessionSignals } from "./signals/session-signals.js";
 import { generateSuggestions } from "./suggestions.js";
@@ -58,7 +58,9 @@ export const generateReport = async (
   projectFilter?: string,
   onProgress?: (current: number, total: number, projectName: string) => void,
 ): Promise<AnalysisReport> => {
-  const projects = await indexAllProjects(projectFilter);
+  const { projects, discovery } = await indexAllProjectsWithDiscovery(
+    projectFilter,
+  );
   const projectAnalyses: ProjectAnalysis[] = [];
 
   for (let projectIndex = 0; projectIndex < projects.length; projectIndex++) {
@@ -89,11 +91,51 @@ export const generateReport = async (
     projects: projectAnalyses,
     topSignals,
     suggestions,
+    ...(projects.length === 0 ? { discovery } : {}),
   };
 };
 
 export const formatReportMarkdown = (report: AnalysisReport): string => {
   const lines: string[] = [];
+
+  if (report.totalSessions === 0) {
+    lines.push("# Claude Optimizer Report");
+    lines.push("");
+    lines.push("No sessions found.");
+
+    if (report.discovery) {
+      lines.push("");
+      lines.push("## Discovery");
+      lines.push("");
+
+      for (const location of report.discovery.locations) {
+        lines.push(
+          `- ${location.frontendId}: ${location.rootPath} (${location.exists ? "exists" : "missing"})`,
+        );
+        lines.push(
+          `  - projects: ${location.projectDirectoriesDiscovered} discovered, ${location.matchingProjectDirectories} matched`,
+        );
+        lines.push(
+          `  - sessions: ${location.sessionFilesDiscovered} discovered, ${location.matchingSessionFiles} matched`,
+        );
+        lines.push(
+          `  - loaded: ${location.loadedSessionFiles}, failed: ${location.failedSessionFiles}`,
+        );
+      }
+
+      if (report.discovery.warnings.length > 0) {
+        lines.push("");
+        lines.push("## Warnings");
+        lines.push("");
+
+        for (const warning of report.discovery.warnings) {
+          lines.push(`- ${warning}`);
+        }
+      }
+    }
+
+    return lines.join("\n");
+  }
 
   lines.push("# Claude Optimizer Report");
   lines.push("");
