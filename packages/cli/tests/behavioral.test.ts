@@ -1,9 +1,26 @@
 import * as path from "node:path";
 import { describe, it, expect } from "vite-plus/test";
-import { detectBehavioralSignals } from "../src/signals/behavioral.js";
+import { loadClaudeSessionFromFilePath } from "../src/adapters/claude.js";
+import {
+  detectBehavioralSignals,
+  detectBehavioralSignalsFromBundle,
+} from "../src/signals/behavioral.js";
 
 const fixture = (name: string) =>
   path.join(import.meta.dirname, "fixtures", name);
+
+const allFixtures = [
+  "correction-heavy-session.jsonl",
+  "drift-session.jsonl",
+  "error-loop-session.jsonl",
+  "exploration-heavy-session.jsonl",
+  "frustrated-session.jsonl",
+  "happy-session.jsonl",
+  "keep-going-session.jsonl",
+  "meta-only-session.jsonl",
+  "rapid-correction-session.jsonl",
+  "thrashing-session.jsonl",
+];
 
 describe("detectBehavioralSignals", () => {
   describe("correction detection", () => {
@@ -154,6 +171,20 @@ describe("detectBehavioralSignals", () => {
         "frustrated-001",
       );
       expect(signals.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("bundle parity", () => {
+    it("keeps behavioral detection equivalent to the wrapper across all fixtures", async () => {
+      for (const fixtureName of allFixtures) {
+        const filePath = fixture(fixtureName);
+        const bundle = await loadClaudeSessionFromFilePath(filePath);
+        const sessionId = fixtureName.replace(/\.jsonl$/, "");
+
+        expect(
+          detectBehavioralSignalsFromBundle(bundle, sessionId),
+        ).toEqual(await detectBehavioralSignals(filePath, sessionId));
+      }
     });
   });
 });

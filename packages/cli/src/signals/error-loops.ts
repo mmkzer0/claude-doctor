@@ -3,68 +3,44 @@ import {
   ERROR_LOOP_CRITICAL_THRESHOLD,
   ERROR_SNIPPET_MAX_LENGTH,
 } from "../constants.js";
-import { parseTranscriptFile, isUserEvent, isAssistantEvent } from "../parser.js";
+import { loadClaudeSessionFromFilePath } from "../adapters/claude.js";
 
-export const detectErrorLoops = async (
-  filePath: string,
-  sessionId: string,
-): Promise<SignalResult[]> => {
-  const events = await parseTranscriptFile(filePath);
+const extractNormalizedErrorSequences = (
+  bundle: NormalizedSessionBundle,
+): ErrorSequence[] => {
   const errorSequences: ErrorSequence[] = [];
 
   let currentToolName: string | undefined;
   let consecutiveFailures = 0;
   let errorSnippets: string[] = [];
 
-  for (const event of events) {
-    if (isAssistantEvent(event)) {
-      const content = event.message?.content;
-      if (!Array.isArray(content)) continue;
-
-      for (const block of content) {
-        if (block.type === "tool_use") {
-          currentToolName = (block as ToolUseBlock).name;
-        }
-      }
+  for (const event of bundle.session.events) {
+    if (event.kind === "tool-call" && event.toolCall) {
+      currentToolName = event.toolCall.name;
+      continue;
     }
 
-    if (isUserEvent(event)) {
-      const content = event.message?.content;
-      if (!Array.isArray(content)) continue;
+    if (event.kind !== "tool-result" || !event.toolResult) continue;
 
-      for (const block of content) {
-        if (block.type !== "tool_result") continue;
-        const resultBlock = block as ToolResultBlock;
-
-        const isError = resultBlock.is_error === true;
-        const resultText =
-          typeof resultBlock.content === "string"
-            ? resultBlock.content
-            : resultBlock.content
-                ?.map((innerBlock: { type: string; text?: string }) => innerBlock.text ?? "")
-                .join("");
-        const hasErrorMarker = resultText?.includes("<tool_use_error>");
-
-        if (isError || hasErrorMarker) {
-          consecutiveFailures++;
-          const snippet = resultText?.slice(0, ERROR_SNIPPET_MAX_LENGTH) ?? "unknown error";
-          errorSnippets.push(snippet);
-        } else {
-          if (
-            consecutiveFailures >= ERROR_LOOP_THRESHOLD &&
-            currentToolName
-          ) {
-            errorSequences.push({
-              toolName: currentToolName,
-              consecutiveFailures,
-              errorSnippets: [...errorSnippets],
-            });
-          }
-          consecutiveFailures = 0;
-          errorSnippets = [];
-        }
-      }
+    if (event.toolResult.isError) {
+      consecutiveFailures++;
+      const snippet =
+        event.toolResult.outputText?.slice(0, ERROR_SNIPPET_MAX_LENGTH) ??
+        "unknown error";
+      errorSnippets.push(snippet);
+      continue;
     }
+
+    if (consecutiveFailures >= ERROR_LOOP_THRESHOLD && currentToolName) {
+      errorSequences.push({
+        toolName: currentToolName,
+        consecutiveFailures,
+        errorSnippets: [...errorSnippets],
+      });
+    }
+
+    consecutiveFailures = 0;
+    errorSnippets = [];
   }
 
   if (consecutiveFailures >= ERROR_LOOP_THRESHOLD && currentToolName) {
@@ -75,6 +51,22 @@ export const detectErrorLoops = async (
     });
   }
 
+  return errorSequences;
+};
+
+export const detectErrorLoops = async (
+  filePath: string,
+  sessionId: string,
+): Promise<SignalResult[]> => {
+  const bundle = await loadClaudeSessionFromFilePath(filePath);
+  return detectErrorLoopsFromBundle(bundle, sessionId);
+};
+
+export const detectErrorLoopsFromBundle = (
+  bundle: NormalizedSessionBundle,
+  sessionId = bundle.session.sessionId,
+): SignalResult[] => {
+  const errorSequences = extractNormalizedErrorSequences(bundle);
   const signals: SignalResult[] = [];
 
   for (const sequence of errorSequences) {

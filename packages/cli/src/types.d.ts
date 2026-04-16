@@ -2,6 +2,8 @@ interface ContentBlock {
   type: string;
 }
 
+type FrontendId = "claude" | "codex" | "opencode" | "gemini";
+
 interface TextBlock extends ContentBlock {
   type: "text";
   text: string;
@@ -158,6 +160,133 @@ interface ToolUseEntry {
 interface SessionTimeRange {
   start: Date;
   end: Date;
+}
+
+type NormalizedRole = "user" | "assistant";
+
+type NormalizedEventKind =
+  | "user-message"
+  | "assistant-message"
+  | "assistant-reasoning"
+  | "tool-call"
+  | "tool-result"
+  | "interrupt"
+  | "meta";
+
+interface ProjectReference {
+  frontendId: FrontendId;
+  projectId: string;
+  projectPath: string;
+  projectName: string;
+  sourcePath?: string;
+}
+
+interface SessionReference {
+  frontendId: FrontendId;
+  sessionId: string;
+  projectId: string;
+  projectPath: string;
+  projectName: string;
+  sourcePath: string;
+}
+
+interface NormalizedToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+interface NormalizedToolResult {
+  toolCallId?: string;
+  outputText?: string;
+  isError: boolean;
+}
+
+interface NormalizedEvent {
+  id: string;
+  sourceEventId?: string;
+  sessionId: string;
+  timestamp: Date;
+  kind: NormalizedEventKind;
+  role?: NormalizedRole;
+  text?: string;
+  parentId?: string | null;
+  isMeta: boolean;
+  isEventMeta?: boolean;
+  rawType?: string;
+  pathHints: string[];
+  toolCall?: NormalizedToolCall;
+  toolResult?: NormalizedToolResult;
+}
+
+interface NormalizedMessageView {
+  id: string;
+  role: NormalizedRole;
+  kind: "message" | "reasoning" | "interrupt";
+  text: string;
+  timestamp: Date;
+  isMeta: boolean;
+}
+
+interface NormalizedToolCallEvent {
+  id: string;
+  timestamp: Date;
+  name: string;
+  arguments: Record<string, unknown>;
+  pathHints: string[];
+}
+
+interface NormalizedToolResultEvent {
+  id: string;
+  timestamp: Date;
+  toolCallId?: string;
+  outputText?: string;
+  isError: boolean;
+}
+
+interface NormalizedInterruptEvent {
+  id: string;
+  timestamp: Date;
+  text?: string;
+}
+
+interface NormalizedSessionViews {
+  messages: NormalizedMessageView[];
+  toolCalls: NormalizedToolCallEvent[];
+  toolResults: NormalizedToolResultEvent[];
+  interrupts: NormalizedInterruptEvent[];
+}
+
+interface NormalizedSessionSummary {
+  userMessageCount: number;
+  assistantMessageCount: number;
+  toolCallCount: number;
+  toolErrorCount: number;
+  interruptCount: number;
+}
+
+interface NormalizedSession {
+  frontendId: FrontendId;
+  sessionId: string;
+  projectId: string;
+  projectPath: string;
+  projectName: string;
+  sourcePath: string;
+  cwd?: string;
+  startedAt: Date;
+  endedAt: Date;
+  events: NormalizedEvent[];
+}
+
+interface NormalizedSessionBundle {
+  session: NormalizedSession;
+  views: NormalizedSessionViews;
+  summary: NormalizedSessionSummary;
+}
+
+interface TranscriptAdapter {
+  readonly frontendId: FrontendId;
+  loadSession(session: SessionReference): Promise<NormalizedSessionBundle>;
 }
 
 interface SignalAggregation {

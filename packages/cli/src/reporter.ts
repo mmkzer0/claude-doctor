@@ -1,13 +1,6 @@
 import { indexAllProjects } from "./indexer.js";
 import { detectAbandonment } from "./signals/abandonment.js";
-import {
-  analyzeSessionSentiment,
-  sentimentToSignals,
-} from "./signals/sentiment.js";
-import { detectThrashing } from "./signals/thrashing.js";
-import { detectErrorLoops } from "./signals/error-loops.js";
-import { detectToolInefficiency } from "./signals/tool-efficiency.js";
-import { detectBehavioralSignals } from "./signals/behavioral.js";
+import { collectSessionSignals } from "./signals/session-signals.js";
 import { generateSuggestions } from "./suggestions.js";
 import {
   SEVERITY_WEIGHT_CRITICAL,
@@ -36,35 +29,10 @@ export const analyzeProject = async (
   signals.push(...abandonmentSignals);
 
   for (const session of project.sessions) {
-    const sentiment = await analyzeSessionSentiment(
+    signals.push(...await collectSessionSignals(
       session.filePath,
       session.sessionId,
-    );
-    signals.push(...sentimentToSignals(sentiment));
-
-    const thrashingSignals = await detectThrashing(
-      session.filePath,
-      session.sessionId,
-    );
-    signals.push(...thrashingSignals);
-
-    const errorLoopSignals = await detectErrorLoops(
-      session.filePath,
-      session.sessionId,
-    );
-    signals.push(...errorLoopSignals);
-
-    const efficiencySignals = await detectToolInefficiency(
-      session.filePath,
-      session.sessionId,
-    );
-    signals.push(...efficiencySignals);
-
-    const behavioralSignals = await detectBehavioralSignals(
-      session.filePath,
-      session.sessionId,
-    );
-    signals.push(...behavioralSignals);
+    ));
   }
 
   signals.sort((left, right) => left.score - right.score);

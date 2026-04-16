@@ -4,22 +4,22 @@ import {
   THRASHING_SEVERITY_CRITICAL,
   THRASHING_SEVERITY_HIGH,
 } from "../constants.js";
-import { parseTranscriptFile, extractToolUses } from "../parser.js";
-
-const extractFilePath = (input: Record<string, unknown>): string | undefined => {
-  for (const key of ["file_path", "path", "filePath", "target_file", "file"]) {
-    const value = input[key];
-    if (typeof value === "string") return value;
-  }
-  return undefined;
-};
+import { loadClaudeSessionFromFilePath } from "../adapters/claude.js";
+import { extractNormalizedToolUses, extractPathHints } from "../normalized.js";
 
 export const detectThrashing = async (
   filePath: string,
   sessionId: string,
 ): Promise<SignalResult[]> => {
-  const events = await parseTranscriptFile(filePath);
-  const toolUses = extractToolUses(events);
+  const bundle = await loadClaudeSessionFromFilePath(filePath);
+  return detectThrashingFromBundle(bundle, sessionId);
+};
+
+export const detectThrashingFromBundle = (
+  bundle: NormalizedSessionBundle,
+  sessionId = bundle.session.sessionId,
+): SignalResult[] => {
+  const toolUses = extractNormalizedToolUses(bundle.session.events);
 
   const editCounts = new Map<string, FileEditCount>();
 
@@ -30,7 +30,7 @@ export const detectThrashing = async (
     );
     if (!isEditTool) continue;
 
-    const targetPath = extractFilePath(toolUse.input);
+    const targetPath = extractPathHints(toolUse.input)[0];
     if (!targetPath) continue;
 
     const existing = editCounts.get(targetPath);

@@ -6,14 +6,22 @@ import {
   READ_ONLY_SESSION_THRESHOLD,
   READ_ONLY_SESSION_SCORE,
 } from "../constants.js";
-import { parseTranscriptFile, extractToolUses } from "../parser.js";
+import { loadClaudeSessionFromFilePath } from "../adapters/claude.js";
+import { extractNormalizedToolUses } from "../normalized.js";
 
 export const detectToolInefficiency = async (
   filePath: string,
   sessionId: string,
 ): Promise<SignalResult[]> => {
-  const events = await parseTranscriptFile(filePath);
-  const toolUses = extractToolUses(events);
+  const bundle = await loadClaudeSessionFromFilePath(filePath);
+  return detectToolInefficiencyFromBundle(bundle, sessionId);
+};
+
+export const detectToolInefficiencyFromBundle = (
+  bundle: NormalizedSessionBundle,
+  sessionId = bundle.session.sessionId,
+): SignalResult[] => {
+  const toolUses = extractNormalizedToolUses(bundle.session.events);
 
   let readCount = 0;
   let editCount = 0;

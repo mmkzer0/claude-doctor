@@ -6,14 +6,7 @@ import {
   MODEL_TOP_ISSUES_LIMIT,
   SAVED_MODEL_VERSION,
 } from "./constants.js";
-import {
-  analyzeSessionSentiment,
-  sentimentToSignals,
-} from "./signals/sentiment.js";
-import { detectThrashing } from "./signals/thrashing.js";
-import { detectErrorLoops } from "./signals/error-loops.js";
-import { detectToolInefficiency } from "./signals/tool-efficiency.js";
-import { detectBehavioralSignals } from "./signals/behavioral.js";
+import { collectSessionSignals } from "./signals/session-signals.js";
 
 const MODEL_DIR = ".claude-doctor";
 const MODEL_FILE = "model.json";
@@ -170,28 +163,10 @@ export const checkSession = async (
   sessionId: string,
   savedModel?: SavedModel,
 ): Promise<CheckResult> => {
-  const signals: SignalResult[] = [];
-
-  const sentiment = await analyzeSessionSentiment(sessionFilePath, sessionId);
-  signals.push(...sentimentToSignals(sentiment));
-
-  const thrashingSignals = await detectThrashing(sessionFilePath, sessionId);
-  signals.push(...thrashingSignals);
-
-  const errorLoopSignals = await detectErrorLoops(sessionFilePath, sessionId);
-  signals.push(...errorLoopSignals);
-
-  const efficiencySignals = await detectToolInefficiency(
+  const signals = await collectSessionSignals(
     sessionFilePath,
     sessionId,
   );
-  signals.push(...efficiencySignals);
-
-  const behavioralSignals = await detectBehavioralSignals(
-    sessionFilePath,
-    sessionId,
-  );
-  signals.push(...behavioralSignals);
 
   const guidance = buildSessionGuidance(signals, savedModel);
 

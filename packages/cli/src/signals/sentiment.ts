@@ -1,7 +1,6 @@
 import Sentiment from "sentiment";
 import {
   SENTINEL_CUSTOM_TOKENS,
-  INTERRUPT_PATTERN,
   SENTIMENT_FRUSTRATION_THRESHOLD,
   SENTIMENT_NEGATIVE_THRESHOLD,
   SENTIMENT_CRITICAL_THRESHOLD,
@@ -10,7 +9,11 @@ import {
   INTERRUPT_SCORE_MULTIPLIER,
   INTERRUPT_CRITICAL_THRESHOLD,
 } from "../constants.js";
-import { parseTranscriptFile, extractUserMessages, isUserEvent } from "../parser.js";
+import { loadClaudeSessionFromFilePath } from "../adapters/claude.js";
+import {
+  countNormalizedInterrupts,
+  extractNormalizedUserMessages,
+} from "../normalized.js";
 
 const analyzer = new Sentiment();
 
@@ -38,15 +41,18 @@ export const analyzeSessionSentiment = async (
   filePath: string,
   sessionId: string,
 ): Promise<SessionSentiment> => {
-  const events = await parseTranscriptFile(filePath);
-  const userMessages = extractUserMessages(events);
+  const bundle = await loadClaudeSessionFromFilePath(filePath);
+  return analyzeSessionSentimentFromBundle(bundle, sessionId);
+};
+
+export const analyzeSessionSentimentFromBundle = (
+  bundle: NormalizedSessionBundle,
+  sessionId = bundle.session.sessionId,
+): SessionSentiment => {
+  const userMessages = extractNormalizedUserMessages(bundle.session.events);
 
   const messageScores = userMessages.map(scoreMessage);
-  const interruptCount = events.filter((event) => {
-    if (!isUserEvent(event)) return false;
-    const content = event.message?.content;
-    return typeof content === "string" && INTERRUPT_PATTERN.test(content);
-  }).length;
+  const interruptCount = countNormalizedInterrupts(bundle.session.events);
 
   const scores = messageScores.map((messageScore) => messageScore.score);
   const averageScore =

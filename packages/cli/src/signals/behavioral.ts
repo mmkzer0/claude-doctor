@@ -1,4 +1,4 @@
-import { parseTranscriptFile, isUserEvent, isAssistantEvent } from "../parser.js";
+import { loadClaudeSessionFromFilePath } from "../adapters/claude.js";
 import {
   CORRECTION_PATTERNS,
   KEEP_GOING_PATTERNS,
@@ -34,55 +34,63 @@ import {
   SNIPPET_LENGTH,
 } from "../constants.js";
 
-const extractConversationTurns = (
-  events: TranscriptEvent[],
+const buildNormalizedConversationTurns = (
+  bundle: NormalizedSessionBundle,
 ): ConversationTurn[] => {
   const turns: ConversationTurn[] = [];
 
-  for (const event of events) {
-    if (!event.timestamp) continue;
-    const timestamp = new Date(event.timestamp).getTime();
+  const assistantTurnsBySourceEventId = new Map<
+    string,
+    { timestamp: number; contentLength: number }
+  >();
 
-    if (isUserEvent(event)) {
-      const content = event.message?.content;
-      if (event.isMeta) continue;
+  for (const event of bundle.session.events) {
+    const timestamp = event.timestamp.getTime();
 
-      const isToolResult = Array.isArray(content);
-      const isInterrupt =
-        typeof content === "string" &&
-        /\[Request interrupted by user/.test(content);
-      const textContent = typeof content === "string" ? content : "";
-      const contentLength = isToolResult ? 0 : textContent.length;
-
-      if (isToolResult && !isInterrupt) continue;
+    if (event.role === "user" && event.text && !event.isEventMeta) {
+      const isInterrupt = event.kind === "interrupt";
 
       turns.push({
         type: "user",
         timestamp,
-        contentLength,
-        isToolResult,
-        isInterrupt,
-        content: textContent,
-      });
-    }
-
-    if (isAssistantEvent(event)) {
-      const content = event.message?.content;
-      const totalLength = Array.isArray(content)
-        ? content.reduce((sum, block) => {
-            if (block.type === "text") return sum + (block as TextBlock).text.length;
-            return sum;
-          }, 0)
-        : 0;
-
-      turns.push({
-        type: "assistant",
-        timestamp,
-        contentLength: totalLength,
+        contentLength: event.text.length,
         isToolResult: false,
-        isInterrupt: false,
+        isInterrupt,
+        content: event.text,
       });
+      continue;
     }
+
+    if (event.kind === "tool-result") {
+      continue;
+    }
+
+    if (event.role !== "assistant") continue;
+
+    const sourceEventId = event.sourceEventId ?? event.id;
+    const existingTurn = assistantTurnsBySourceEventId.get(sourceEventId);
+    const additionalContentLength =
+      event.kind === "assistant-message" && event.text ? event.text.length : 0;
+
+    if (existingTurn) {
+      existingTurn.contentLength += additionalContentLength;
+      continue;
+    }
+
+    assistantTurnsBySourceEventId.set(sourceEventId, {
+      timestamp,
+      contentLength: additionalContentLength,
+    });
+  }
+
+  for (const assistantTurn of assistantTurnsBySourceEventId.values()) {
+    turns.push({
+      type: "assistant",
+      timestamp: assistantTurn.timestamp,
+      contentLength: assistantTurn.contentLength,
+      isToolResult: false,
+      isInterrupt: false,
+    });
   }
 
   return turns.sort((left, right) => left.timestamp - right.timestamp);
@@ -271,8 +279,15 @@ export const detectBehavioralSignals = async (
   filePath: string,
   sessionId: string,
 ): Promise<SignalResult[]> => {
-  const events = await parseTranscriptFile(filePath);
-  const turns = extractConversationTurns(events);
+  const bundle = await loadClaudeSessionFromFilePath(filePath);
+  return detectBehavioralSignalsFromBundle(bundle, sessionId);
+};
+
+export const detectBehavioralSignalsFromBundle = (
+  bundle: NormalizedSessionBundle,
+  sessionId = bundle.session.sessionId,
+): SignalResult[] => {
+  const turns = buildNormalizedConversationTurns(bundle);
   const userTurns = extractUserTurns(turns);
   const signals: SignalResult[] = [];
 
