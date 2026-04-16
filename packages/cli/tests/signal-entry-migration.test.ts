@@ -19,6 +19,35 @@ import {
 const fixture = (name: string): string =>
   path.join(import.meta.dirname, "fixtures", name);
 
+const allFixtures = [
+  "correction-heavy-session.jsonl",
+  "drift-session.jsonl",
+  "error-loop-session.jsonl",
+  "exploration-heavy-session.jsonl",
+  "frustrated-session.jsonl",
+  "happy-session.jsonl",
+  "keep-going-session.jsonl",
+  "meta-only-session.jsonl",
+  "rapid-correction-session.jsonl",
+  "thrashing-session.jsonl",
+];
+
+const sortSignalsForParity = (
+  signals: SignalResult[],
+): Array<{ signalName: string; severity: string; score: number }> =>
+  signals
+    .map((signal) => ({
+      signalName: signal.signalName,
+      severity: signal.severity,
+      score: signal.score,
+    }))
+    .sort(
+      (left, right) =>
+        left.signalName.localeCompare(right.signalName) ||
+        left.severity.localeCompare(right.severity) ||
+        left.score - right.score,
+    );
+
 describe("normalized signal-entry migration", () => {
   describe("bundle parity", () => {
     it("keeps sentiment analysis equivalent to the wrapper", async () => {
@@ -59,22 +88,24 @@ describe("normalized signal-entry migration", () => {
   });
 
   describe("collector parity", () => {
-    it("matches the manual per-session signal composition", async () => {
-      const filePath = fixture("frustrated-session.jsonl");
-      const sessionId = "frustrated-001";
-      const sentiment = await analyzeSessionSentiment(filePath, sessionId);
+    it("matches the manual per-session signal composition across all fixtures", async () => {
+      for (const fixtureName of allFixtures) {
+        const filePath = fixture(fixtureName);
+        const sessionId = fixtureName.replace(/\.jsonl$/, "");
+        const sentiment = await analyzeSessionSentiment(filePath, sessionId);
 
-      const manuallyCollectedSignals = [
-        ...sentimentToSignals(sentiment),
-        ...(await detectThrashing(filePath, sessionId)),
-        ...(await detectErrorLoops(filePath, sessionId)),
-        ...(await detectToolInefficiency(filePath, sessionId)),
-        ...(await detectBehavioralSignals(filePath, sessionId)),
-      ];
+        const manuallyCollectedSignals = [
+          ...sentimentToSignals(sentiment),
+          ...(await detectThrashing(filePath, sessionId)),
+          ...(await detectErrorLoops(filePath, sessionId)),
+          ...(await detectToolInefficiency(filePath, sessionId)),
+          ...(await detectBehavioralSignals(filePath, sessionId)),
+        ];
 
-      expect(await collectSessionSignals(filePath, sessionId)).toEqual(
-        manuallyCollectedSignals,
-      );
+        expect(
+          sortSignalsForParity(await collectSessionSignals(filePath, sessionId)),
+        ).toEqual(sortSignalsForParity(manuallyCollectedSignals));
+      }
     });
   });
 
@@ -99,27 +130,15 @@ describe("normalized signal-entry migration", () => {
       );
 
       expect({
-        activeSignals: result.activeSignals.map((signal) => ({
-          signalName: signal.signalName,
-          severity: signal.severity,
-          score: signal.score,
-        })),
-        guidance: result.guidance,
+        activeSignals: sortSignalsForParity(result.activeSignals),
+        guidance: [...result.guidance].sort((left, right) =>
+          left.localeCompare(right),
+        ),
         isHealthy: result.isHealthy,
         sessionId: result.sessionId,
       }).toMatchInlineSnapshot(`
         {
           "activeSignals": [
-            {
-              "score": -6,
-              "severity": "critical",
-              "signalName": "negative-sentiment",
-            },
-            {
-              "score": -2,
-              "severity": "high",
-              "signalName": "user-interrupts",
-            },
             {
               "score": -10,
               "severity": "critical",
@@ -130,10 +149,20 @@ describe("normalized signal-entry migration", () => {
               "severity": "medium",
               "signalName": "high-turn-ratio",
             },
+            {
+              "score": -6,
+              "severity": "critical",
+              "signalName": "negative-sentiment",
+            },
+            {
+              "score": -2,
+              "severity": "high",
+              "signalName": "user-interrupts",
+            },
           ],
           "guidance": [
-            "The user is frustrated. Acknowledge the issue, ask clarifying questions if needed, and focus on getting it right this time.",
             "The user interrupted you. Whatever you were doing was wrong. Stop and ask what they actually want.",
+            "The user is frustrated. Acknowledge the issue, ask clarifying questions if needed, and focus on getting it right this time.",
           ],
           "isHealthy": false,
           "sessionId": "frustrated-001",

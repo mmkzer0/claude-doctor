@@ -6,7 +6,6 @@ import {
   SEVERITY_WEIGHT_LOW,
   SEVERITY_WEIGHT_MEDIUM,
 } from "../src/constants.js";
-import { buildSessionMetadata } from "../src/indexer.js";
 import { analyzeProject } from "../src/reporter.js";
 import { detectAbandonment } from "../src/signals/abandonment.js";
 import {
@@ -21,24 +20,41 @@ import { detectBehavioralSignals } from "../src/signals/behavioral.js";
 const fixture = (name: string): string =>
   path.join(import.meta.dirname, "fixtures", name);
 
-const buildFixtureProject = async (): Promise<ProjectMetadata> => {
-  const sessionFiles = [
-    "happy-session.jsonl",
-    "frustrated-session.jsonl",
-    "error-loop-session.jsonl",
-    "thrashing-session.jsonl",
+const buildSessionMetadataFixture = (
+  sessionId: string,
+  sessionFile: string,
+  minutesFromStart: number,
+): SessionMetadata => ({
+  sessionId,
+  projectPath: "fixtures/project-alpha",
+  projectName: "fixtures-project-alpha",
+  filePath: fixture(sessionFile),
+  startTime: new Date(`2026-04-16T10:${String(minutesFromStart).padStart(2, "0")}:00.000Z`),
+  endTime: new Date(`2026-04-16T10:${String(minutesFromStart + 1).padStart(2, "0")}:00.000Z`),
+  userMessageCount: 3,
+  assistantMessageCount: 3,
+  toolCallCount: 0,
+  toolErrorCount: 0,
+  interruptCount: 0,
+});
+
+const buildFixtureProject = (): ProjectMetadata => {
+  const sessions = [
+    buildSessionMetadataFixture("happy-session", "happy-session.jsonl", 0),
+    buildSessionMetadataFixture(
+      "frustrated-session",
+      "frustrated-session.jsonl",
+      2,
+    ),
+    buildSessionMetadataFixture(
+      "error-loop-session",
+      "error-loop-session.jsonl",
+      4,
+    ),
+    buildSessionMetadataFixture("thrashing-session", "thrashing-session.jsonl", 6),
   ];
   const projectPath = "fixtures/project-alpha";
   const projectName = "fixtures-project-alpha";
-  const sessions = await Promise.all(
-    sessionFiles.map((sessionFile) =>
-      buildSessionMetadata(fixture(sessionFile), projectPath, projectName),
-    ),
-  );
-
-  sessions.sort(
-    (left, right) => left.startTime.getTime() - right.startTime.getTime(),
-  );
 
   return {
     projectPath,
@@ -99,7 +115,7 @@ const analyzeProjectLegacy = async (
 
 describe("reporter parity", () => {
   it("keeps analyzeProject equivalent to the legacy per-session composition", async () => {
-    const project = await buildFixtureProject();
+    const project = buildFixtureProject();
 
     expect(await analyzeProject(project)).toEqual(
       await analyzeProjectLegacy(project),
